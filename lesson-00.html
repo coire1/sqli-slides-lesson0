@@ -4,7 +4,7 @@
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-		<title>reveal.js</title>
+		<title>SQL Injection - Lesson 00 - coppito_zero_day</title>
 
 		<link rel="stylesheet" href="css/reset.css">
 		<link rel="stylesheet" href="css/reveal.css">
@@ -27,6 +27,7 @@
 			<div class="slides">
 				<section>
 					<h2>SQL Injection</h2>
+					<h4>Lesson 00</h4>
 				</section>
 				<section>
 					<h2>Cos'è una SQL Injection?</h2>
@@ -369,7 +370,7 @@
 				<section>
 					<h2>COMMENTS</h2>
 					<small>A volte accade che possa essere iniettato codice solo nel mezzo della query. Questo ci impedisce di aggiungere una condizione alla fine della query.</small>
-					<small>I commenti venegono in nostro aiuto.</small>
+					<small>I commenti vengono in nostro aiuto.</small>
 					<div class="fragment fade">
 						<pre>
 							<code class="hljs php" data-trim>
@@ -633,7 +634,7 @@ while($row = $result->fetch_array()){
 						<small>Valore in input:</small>
 						<pre>
 							<code class="hljs php" data-trim>
-								$_GET['pages'] = "; SELECT username, password FROM users;";
+								$_GET['id'] = "1; SELECT username, password FROM users;";
 							</code>
 						</pre>
 					</div>
@@ -668,7 +669,7 @@ while($row = $result->fetch_array()){
 						<small>Valore in input:</small>
 						<pre>
 							<code class="hljs php" data-trim>
-								$_GET['pages'] = "; UPDATE users SET password='h4ck3r' WHERE username = 'admin'";
+								$_GET['id'] = "1; UPDATE users SET password='h4ck3r' WHERE username = 'admin'";
 							</code>
 						</pre>
 					</div>
@@ -778,7 +779,8 @@ SELECT * FROM users WHERE username = 'admin' AND password = ''+(SELECT password 
 				],
 				slideNumber: false,
 				width: 1600,
-				hash: true
+				hash: true,
+				pdfSeparateFragments: false
 			});
 		</script>
 	</body>

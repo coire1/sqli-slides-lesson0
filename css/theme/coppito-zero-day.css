@@ -161,6 +161,8 @@ body {
   }
 
 .reveal code {
+  background: #272822;
+  color: #ddd;
   font-family: monospace;
   text-transform: none; }
 
@@ -299,4 +301,8 @@ body {
 
 .reveal.slides {
   margin-top: 50px;
+}
+
+.reveal ol {
+  margin: 0 0 0 2em;
 }
