@@ -162,3 +162,10 @@ ul, ol, div, p {
 	position: absolute;
 	font-size: 14px;
 }
+
+.reveal .slide-background-content {
+  background-image: url('../theme/assets/coppito_zero_day.svg');
+  background-repeat: no-repeat;
+	background-size: 300px auto;
+	background-position: 30px 50px;
+}
