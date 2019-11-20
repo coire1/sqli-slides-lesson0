@@ -48,7 +48,7 @@
 						<li class="fragment fade">Il risultato della SQLi viene restituito (non sempre).</li>
 					</ul>
 					<p class="fragment fade">
-						Le second order SQLi avvengono poichè gli sviluppatore tendono a fidarsi di un input ricevuto dal DB.<br />
+						Le second order SQLi avvengono poichè gli sviluppatori tendono a fidarsi di un input ricevuto dal DB.<br />
 						Per evitare ogni forma di SQLi è necessario "sterilizzare" sempre tutte le query (usate i prepared statements!).
 					</p>
 				</section>
@@ -285,7 +285,6 @@ $year = */ ALL SELECT 1,2,3 -- -
 					<p>&nbsp;</p>
 					<p class="fragment fade">
 						Alcuni WAF rimuovono le parole in blacklist una sola volta.
-						A volte i WAF sono scritti in linguaggi che usano i null bytes <code>0x00</code> per determinare la lunghezza di una stringa.<br />
 					</p>
 					<p>&nbsp;</p>
 					<p class="fragment fade">
